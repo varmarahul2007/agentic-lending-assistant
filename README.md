@@ -4,6 +4,11 @@ A single-file, Claude-powered chat widget template for a mortgage/lending site. 
 
 It's one static `index.html` file with no build step and no backend.
 
+## Two variants in this repo
+
+- **`index.html`** — the generic, unbranded template described below. Fork it for any lender.
+- **`onity-assistant.html`** — a real-content variant grounded in Onity Mortgage's published buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step process), with an on-topic-only guardrail: anything unrelated to Onity home loans gets a fixed deflection message instead of a guess. Independent prototype, not the official onitymortgage.com widget.
+
 ## Try it
 
 Open `index.html` in a browser (or visit the deployed URL), click the ⚙️ button, and paste an [Anthropic API key](https://console.anthropic.com/settings/keys). The key is stored only in your browser's `localStorage` and sent directly to `api.anthropic.com` — this repo has no server.
