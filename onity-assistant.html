@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Onity Mortgage Assistant — Claude-Powered, RAG-Grounded</title>
+<title>Onity Mortgage Assistant — RAG-Grounded, Claude/Gemini/GPT-Powered</title>
 <!--
   Onity Mortgage Assistant — real-content variant
   ---------------------------------------------------------------
@@ -9,6 +9,16 @@
   every answer is grounded in real, sourced content rather than invented
   figures. It also enforces an on-topic-only guardrail: anything unrelated
   to Onity home loans gets a fixed deflection message instead of a guess.
+
+  Like index.html, free-form questions go to whichever LLM you pick in the
+  ⚙️ settings panel — Anthropic Claude, Google Gemini, or OpenAI GPT — via
+  genuine tool-calling. The API key is stored only in the visitor's browser
+  and sent directly to that provider; this file has no backend.
+
+  Provider note — CORS support differs by provider: Anthropic and Google
+  both support direct browser calls; OpenAI's API blocks cross-origin
+  browser requests outright, so that option only works with your own
+  backend proxy in front of it (included for completeness).
 
   Independent prototype — not the official onitymortgage.com chat widget.
 -->
@@ -227,6 +237,13 @@
     background:var(--warning-soft);color:var(--warning);border:1px solid transparent;
   }
   .apikey-warning[hidden]{display:none;}
+  .provider-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .provider-option{
+    flex:1;min-width:120px;display:flex;align-items:center;gap:7px;font-size:0.83rem;font-weight:600;
+    background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;cursor:pointer;
+  }
+  .provider-option input{margin:0;accent-color:var(--indigo);}
+  .provider-option:has(input:checked){border-color:var(--indigo);color:var(--indigo);background:var(--indigo-soft);}
   .apikey-row{display:flex;gap:8px;}
   .apikey-row input{
     flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);
@@ -358,11 +375,12 @@
 
     <section class="hero">
       <div>
-        <span class="eyebrow">Buy a Home &middot; Claude-powered, RAG-grounded</span>
+        <span class="eyebrow">Buy a Home &middot; RAG-grounded, bring your own LLM</span>
         <h1>An Onity assistant that only answers from real Onity content</h1>
         <p>Every answer is grounded in the actual onitymortgage.com/buy-a-home knowledge base — Purchase Promise programs, contact channels, the 6-step process — with real tool-calling for calculators and promo lookups. Ask something outside Onity's home-loan world and it says so, instead of guessing.</p>
         <ul class="capability-chips">
-          <li>🧠 Real Claude reasoning</li>
+          <li>🧠 Real LLM reasoning</li>
+          <li>🔀 Claude, Gemini, or GPT</li>
           <li>📚 Grounded in Onity's own content</li>
           <li>🎙️ Voice in &amp; out</li>
           <li>🧮 Live calculators</li>
@@ -445,20 +463,26 @@
           </button>
         </form>
         <div class="mic-status" id="micStatus" aria-live="polite"></div>
-        <div class="composer-foot">Your API key is stored only in this browser and sent directly to Anthropic. This prototype has no backend.</div>
+        <div class="composer-foot">Your API key is stored only in this browser and sent directly to whichever provider you pick. This prototype has no backend.</div>
 
         <div class="apikey-panel" id="apiKeyPanel">
           <button class="icon-btn apikey-close" id="apiKeyCloseBtn" type="button" aria-label="Close settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
-          <p class="apikey-title">Connect your Anthropic API key</p>
+          <p class="apikey-title">Choose an AI provider</p>
           <p class="apikey-warning" id="embeddedNotice" hidden></p>
-          <p class="apikey-hint">Stored only in this browser (localStorage) and sent directly to <code>api.anthropic.com</code> — this prototype has no server. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com/settings/keys</a>.</p>
+          <div class="provider-row" id="providerRow">
+            <label class="provider-option"><input type="radio" name="provider" value="anthropic" id="providerAnthropic"> Anthropic (Claude)</label>
+            <label class="provider-option"><input type="radio" name="provider" value="gemini" id="providerGemini"> Google (Gemini)</label>
+            <label class="provider-option"><input type="radio" name="provider" value="openai" id="providerOpenAI"> OpenAI (GPT)</label>
+          </div>
+          <p class="apikey-warning" id="providerNote" hidden></p>
+          <p class="apikey-hint" id="apiKeyHint"></p>
           <div class="apikey-row">
             <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"/>
             <button type="button" id="apiKeySaveBtn">Save</button>
           </div>
-          <button type="button" id="apiKeyClearBtn" class="apikey-clear">Remove saved key</button>
+          <button type="button" id="apiKeyClearBtn" class="apikey-clear">Remove saved key for this provider</button>
           <p class="apikey-hint">Model: <code id="modelIdLabel"></code></p>
         </div>
       </div>
@@ -477,8 +501,37 @@
   /* =========================================================
      Configuration
      ========================================================= */
-  var MODEL_ID = "claude-opus-4-8";
-  var API_KEY_STORAGE_KEY = "onity_assistant_anthropic_api_key";
+  var PROVIDER_STORAGE_KEY = "onity_assistant_provider";
+
+  var PROVIDERS = {
+    anthropic: {
+      label: "Anthropic (Claude)",
+      model: "claude-opus-4-8",
+      keyStorageKey: "onity_assistant_key_anthropic",
+      keyPlaceholder: "sk-ant-...",
+      keyUrl: "https://console.anthropic.com/settings/keys",
+      note: null
+    },
+    gemini: {
+      label: "Google (Gemini)",
+      model: "gemini-3.5-flash",
+      keyStorageKey: "onity_assistant_key_gemini",
+      keyPlaceholder: "AIza...",
+      keyUrl: "https://aistudio.google.com/apikey",
+      note: null
+    },
+    openai: {
+      label: "OpenAI (GPT)",
+      // Verify this against platform.openai.com/docs/models before relying on it —
+      // OpenAI's model lineup moves fast and this file can't auto-update it.
+      model: "gpt-5.4",
+      keyStorageKey: "onity_assistant_key_openai",
+      keyPlaceholder: "sk-...",
+      keyUrl: "https://platform.openai.com/api-keys",
+      note: "OpenAI blocks direct browser requests (no CORS) — sending a message will fail here with “Failed to fetch” unless you run your own backend proxy in front of it. Anthropic and Gemini both work directly from this static page; OpenAI does not."
+    }
+  };
+
   var OFFTOPIC_MESSAGE = "I'm the Onity Mortgage assistant, so I can only help with questions about Onity home loans — buying, refinancing, promotions, and account servicing. For anything else, please reach out to the right resource directly.";
 
   /* Knowledge base — verbatim from onitymortgage.com/buy-a-home, supplied
@@ -643,16 +696,18 @@
   var settingsBtn = document.getElementById('settingsBtn');
   var apiKeyPanel = document.getElementById('apiKeyPanel');
   var apiKeyInput = document.getElementById('apiKeyInput');
+  var apiKeyHint = document.getElementById('apiKeyHint');
   var apiKeySaveBtn = document.getElementById('apiKeySaveBtn');
   var apiKeyClearBtn = document.getElementById('apiKeyClearBtn');
   var apiKeyCloseBtn = document.getElementById('apiKeyCloseBtn');
+  var providerNoteEl = document.getElementById('providerNote');
+  var modelIdLabel = document.getElementById('modelIdLabel');
   var statusPill = document.getElementById('statusPill');
-
-  document.getElementById('modelIdLabel').textContent = MODEL_ID;
+  var providerRadios = document.querySelectorAll('input[name="provider"]');
 
   var voiceOut = false;
   var recentTools = [];
-  var conversationHistory = [];
+  var conversationHistory = []; // generic, provider-agnostic: [{role:'user'|'assistant', text}]
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, function(c){
@@ -664,31 +719,63 @@
     return n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
   }
 
-  function getApiKey(){
-    try { return localStorage.getItem(API_KEY_STORAGE_KEY) || ''; }
+  function getProvider(){
+    try {
+      var p = localStorage.getItem(PROVIDER_STORAGE_KEY);
+      return (p && PROVIDERS[p]) ? p : 'anthropic';
+    } catch(e){ return 'anthropic'; }
+  }
+  function setProvider(p){
+    try { localStorage.setItem(PROVIDER_STORAGE_KEY, p); } catch(e){ /* ignore */ }
+  }
+  function getApiKey(providerId){
+    providerId = providerId || getProvider();
+    try { return localStorage.getItem(PROVIDERS[providerId].keyStorageKey) || ''; }
     catch(e){ return ''; }
   }
-  function setApiKey(key){
-    try { localStorage.setItem(API_KEY_STORAGE_KEY, key); } catch(e){ /* ignore */ }
-    refreshStatusPill();
+  function setApiKey(providerId, key){
+    try { localStorage.setItem(PROVIDERS[providerId].keyStorageKey, key); } catch(e){ /* ignore */ }
   }
-  function clearApiKey(){
-    try { localStorage.removeItem(API_KEY_STORAGE_KEY); } catch(e){ /* ignore */ }
-    refreshStatusPill();
+  function clearApiKey(providerId){
+    try { localStorage.removeItem(PROVIDERS[providerId].keyStorageKey); } catch(e){ /* ignore */ }
   }
   function refreshStatusPill(){
-    if (getApiKey()){
-      statusPill.textContent = 'Connected · Claude live';
+    var p = getProvider();
+    if (getApiKey(p)){
+      statusPill.textContent = 'Connected · ' + PROVIDERS[p].label + ' live';
       statusPill.classList.remove('offline');
     } else {
       statusPill.textContent = 'No API key connected';
       statusPill.classList.add('offline');
     }
   }
+  function selectedRadioProvider(){
+    for (var i=0;i<providerRadios.length;i++){ if (providerRadios[i].checked) return providerRadios[i].value; }
+    return getProvider();
+  }
+  function syncPanelToProvider(providerId){
+    var cfg = PROVIDERS[providerId];
+    apiKeyInput.placeholder = cfg.keyPlaceholder;
+    apiKeyInput.value = getApiKey(providerId);
+    apiKeyHint.innerHTML = 'Stored only in this browser (localStorage) and sent directly to ' + escapeHtml(cfg.label) + ' — this prototype has no server. Get a key at <a href="' + cfg.keyUrl + '" target="_blank" rel="noopener">' + cfg.keyUrl.replace(/^https?:\/\//,'') + '</a>.';
+    modelIdLabel.textContent = cfg.model;
+    if (cfg.note){
+      providerNoteEl.textContent = cfg.note;
+      providerNoteEl.hidden = false;
+    } else {
+      providerNoteEl.hidden = true;
+    }
+  }
+  providerRadios.forEach(function(radio){
+    radio.addEventListener('change', function(){ syncPanelToProvider(radio.value); });
+  });
+
   function openSettings(){
+    var current = getProvider();
+    providerRadios.forEach(function(radio){ radio.checked = (radio.value === current); });
+    syncPanelToProvider(current);
     apiKeyPanel.hidden = false;
     settingsBtn.setAttribute('aria-pressed','true');
-    apiKeyInput.value = getApiKey();
     apiKeyInput.focus();
   }
   function closeSettings(){
@@ -702,13 +789,18 @@
   apiKeySaveBtn.addEventListener('click', function(){
     var val = apiKeyInput.value.trim();
     if (!val) return;
-    setApiKey(val);
+    var providerId = selectedRadioProvider();
+    setApiKey(providerId, val);
+    setProvider(providerId);
+    refreshStatusPill();
     closeSettings();
-    addBotBubble('<p>Connected. Ask me anything about Onity.</p>', 'Connected. Ask me anything about Onity.');
+    addBotBubble('<p>Connected to ' + escapeHtml(PROVIDERS[providerId].label) + '. Ask me anything about Onity.</p>', 'Connected. Ask me anything about Onity.');
   });
   apiKeyClearBtn.addEventListener('click', function(){
-    clearApiKey();
+    var providerId = selectedRadioProvider();
+    clearApiKey(providerId);
     apiKeyInput.value = '';
+    refreshStatusPill();
   });
 
   function scrollToEnd(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
@@ -935,53 +1027,55 @@
 
   function friendlyError(err){
     var msg = String(err && err.message || err);
-    if (msg.indexOf('NO_API_KEY') !== -1) return 'I need an Anthropic API key to think — click the ⚙️ button above to add one.';
-    if (msg.indexOf('401') !== -1) return 'That API key was rejected by Anthropic — double-check it in the ⚙️ settings panel.';
+    var provider = getProvider();
+    var providerLabel = PROVIDERS[provider].label;
+    if (msg.indexOf('NO_API_KEY') !== -1) return 'I need a ' + providerLabel + ' API key to think — click the ⚙️ button above to add one.';
+    if (msg.indexOf('credit balance is too low') !== -1) return 'This Anthropic account is out of credits — add some at console.anthropic.com/settings/billing, then try again.';
+    if (msg.indexOf('insufficient_quota') !== -1 || msg.indexOf('exceeded your current quota') !== -1) return 'This OpenAI account is out of quota — check platform.openai.com/settings/billing, then try again.';
+    if (msg.indexOf('API key not valid') !== -1 || msg.indexOf('API_KEY_INVALID') !== -1 || msg.indexOf(' 401 ') !== -1 || msg.indexOf('401 ') === 0) return 'That API key was rejected by ' + providerLabel + ' — double-check it in the ⚙️ settings panel.';
     if (msg.indexOf('429') !== -1) return 'The API is rate-limiting this key right now — wait a moment and try again.';
     if (msg.indexOf('Failed to fetch') !== -1 && IS_EMBEDDED){
-      return 'Couldn\'t reach the Claude API — this looks like it\'s being viewed inside an embedded preview (e.g. Claude\'s Artifact viewer), which blocks outbound network requests for security. Download this HTML file and open it directly, or host it, and the live API calls will work.';
+      return 'Couldn\'t reach the API — this looks like it\'s being viewed inside an embedded preview (e.g. Claude\'s Artifact viewer), which blocks outbound network requests for security. Download this HTML file and open it directly, or host it, and the live API calls will work.';
+    }
+    if (msg.indexOf('Failed to fetch') !== -1 && provider === 'openai'){
+      return 'OpenAI blocks direct browser requests (no CORS) — this provider can\'t be called from a static page without your own backend proxy. Switch to Anthropic or Gemini in ⚙️ settings, both of which work directly, or add a proxy in front of OpenAI.';
     }
     if (msg.indexOf('Failed to fetch') !== -1){
-      return 'Couldn\'t reach the Claude API — check your internet connection, and confirm the API key doesn\'t have IP/domain restrictions that would block this origin.';
+      return 'Couldn\'t reach the API — check your internet connection, and confirm the API key doesn\'t have IP/domain restrictions that would block this origin.';
     }
-    return 'Couldn\'t reach the Claude API (' + msg + '). Check your connection and API key, then try again.';
+    return 'Couldn\'t reach the API (' + msg + '). Check your connection and API key, then try again.';
   }
 
-  function callClaudeOnce(history){
-    var apiKey = getApiKey();
+  // ---- Anthropic (Claude) ----
+  function runAnthropicAgentLoop(history){
+    var apiKey = getApiKey('anthropic');
     if (!apiKey) return Promise.reject(new Error('NO_API_KEY'));
-    return fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: MODEL_ID,
-        max_tokens: 1200,
-        system: SYSTEM_PROMPT,
-        tools: TOOLS,
-        messages: history
-      })
-    }).then(function(resp){
-      if (!resp.ok){
-        return resp.text().then(function(t){ throw new Error(resp.status + ' ' + t); });
-      }
-      return resp.json();
-    });
-  }
-
-  function runAgentLoop(history){
-    var loopMessages = history.slice();
+    var messages = history.map(function(m){ return { role: m.role, content: [{ type: 'text', text: m.text }] }; });
     var iterations = 0;
     function step(){
       iterations++;
       if (iterations > 6) return Promise.reject(new Error('Too many tool iterations'));
-      return callClaudeOnce(loopMessages).then(function(data){
+      return fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: PROVIDERS.anthropic.model,
+          max_tokens: 1200,
+          system: SYSTEM_PROMPT,
+          tools: TOOLS,
+          messages: messages
+        })
+      }).then(function(resp){
+        if (!resp.ok) return resp.text().then(function(t){ throw new Error(resp.status + ' ' + t); });
+        return resp.json();
+      }).then(function(data){
         if (data.stop_reason === 'tool_use'){
-          loopMessages.push({ role: 'assistant', content: data.content });
+          messages.push({ role: 'assistant', content: data.content });
           var toolResults = [];
           data.content.forEach(function(block){
             if (block.type === 'tool_use'){
@@ -991,18 +1085,112 @@
               toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result.resultText });
             }
           });
-          loopMessages.push({ role: 'user', content: toolResults });
+          messages.push({ role: 'user', content: toolResults });
           return step();
         }
         var textBlock = null;
-        for (var i=0;i<data.content.length;i++){
-          if (data.content[i].type === 'text'){ textBlock = data.content[i]; break; }
-        }
-        loopMessages.push({ role: 'assistant', content: data.content });
-        return { text: textBlock ? textBlock.text : '', messages: loopMessages };
+        for (var i=0;i<data.content.length;i++){ if (data.content[i].type === 'text'){ textBlock = data.content[i]; break; } }
+        return { text: textBlock ? textBlock.text : '' };
       });
     }
     return step();
+  }
+
+  // ---- Google (Gemini) ----
+  function runGeminiAgentLoop(history){
+    var apiKey = getApiKey('gemini');
+    if (!apiKey) return Promise.reject(new Error('NO_API_KEY'));
+    var contents = history.map(function(m){ return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] }; });
+    var geminiTools = [{ functionDeclarations: TOOLS.map(function(t){ return { name: t.name, description: t.description, parameters: t.input_schema }; }) }];
+    var iterations = 0;
+    function step(){
+      iterations++;
+      if (iterations > 6) return Promise.reject(new Error('Too many tool iterations'));
+      var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + PROVIDERS.gemini.model + ':generateContent?key=' + encodeURIComponent(apiKey);
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: contents,
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          tools: geminiTools
+        })
+      }).then(function(resp){
+        return resp.json().then(function(data){
+          if (!resp.ok) throw new Error(resp.status + ' ' + JSON.stringify(data));
+          return data;
+        });
+      }).then(function(data){
+        var candidate = data.candidates && data.candidates[0];
+        var parts = (candidate && candidate.content && candidate.content.parts) || [];
+        var functionCalls = parts.filter(function(p){ return p.functionCall; });
+        if (functionCalls.length){
+          contents.push({ role: 'model', parts: parts });
+          var responseParts = [];
+          functionCalls.forEach(function(p){
+            var fc = p.functionCall;
+            var result = executeTool(fc.name, fc.args || {});
+            addToolCallBubble(result.label + '…', result.cardHtml);
+            noteToolUsed(fc.name.replace(/_/g,' '));
+            responseParts.push({ functionResponse: { name: fc.name, id: fc.id, response: { result: result.resultText } } });
+          });
+          contents.push({ role: 'user', parts: responseParts });
+          return step();
+        }
+        var textPart = parts.filter(function(p){ return typeof p.text === 'string'; })[0];
+        return { text: textPart ? textPart.text : '' };
+      });
+    }
+    return step();
+  }
+
+  // ---- OpenAI (GPT) ----
+  // Fully implemented, but OpenAI's API blocks direct browser CORS requests —
+  // this will only succeed if you put your own proxy in front of it.
+  function runOpenAIAgentLoop(history){
+    var apiKey = getApiKey('openai');
+    if (!apiKey) return Promise.reject(new Error('NO_API_KEY'));
+    var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+    history.forEach(function(m){ messages.push({ role: m.role, content: m.text }); });
+    var openaiTools = TOOLS.map(function(t){ return { type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }; });
+    var iterations = 0;
+    function step(){
+      iterations++;
+      if (iterations > 6) return Promise.reject(new Error('Too many tool iterations'));
+      return fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ model: PROVIDERS.openai.model, messages: messages, tools: openaiTools })
+      }).then(function(resp){
+        return resp.json().then(function(data){
+          if (!resp.ok) throw new Error(resp.status + ' ' + JSON.stringify(data));
+          return data;
+        });
+      }).then(function(data){
+        var msg = data.choices[0].message;
+        if (msg.tool_calls && msg.tool_calls.length){
+          messages.push(msg);
+          msg.tool_calls.forEach(function(tc){
+            var args = {};
+            try { args = JSON.parse(tc.function.arguments || '{}'); } catch(e){ /* ignore parse errors */ }
+            var result = executeTool(tc.function.name, args);
+            addToolCallBubble(result.label + '…', result.cardHtml);
+            noteToolUsed(tc.function.name.replace(/_/g,' '));
+            messages.push({ role: 'tool', tool_call_id: tc.id, content: result.resultText });
+          });
+          return step();
+        }
+        return { text: msg.content || '' };
+      });
+    }
+    return step();
+  }
+
+  function runAgentLoop(history){
+    var provider = getProvider();
+    if (provider === 'gemini') return runGeminiAgentLoop(history);
+    if (provider === 'openai') return runOpenAIAgentLoop(history);
+    return runAnthropicAgentLoop(history);
   }
 
   function sendMessage(text){
@@ -1011,19 +1199,20 @@
     addUserBubble(trimmed);
     quickRepliesEl.innerHTML = '';
 
-    if (!getApiKey()){
+    var provider = getProvider();
+    if (!getApiKey(provider)){
       openSettings();
-      addBotBubble('<p>Add an Anthropic API key above, then send that again.</p>', 'Add an Anthropic API key, then send that again.');
+      addBotBubble('<p>Add an API key above, then send that again.</p>', 'Add an API key, then send that again.');
       return;
     }
 
-    conversationHistory.push({ role: 'user', content: [{ type: 'text', text: trimmed }] });
+    conversationHistory.push({ role: 'user', text: trimmed });
     var removeTyping = showTyping();
 
     runAgentLoop(conversationHistory).then(function(result){
       removeTyping();
-      conversationHistory = result.messages;
       if (result.text){
+        conversationHistory.push({ role: 'assistant', text: result.text });
         addBotBubble(formatAssistantText(result.text), result.text);
       }
       setQuickReplies(['What are today\'s rates?', 'What is the 1% Rate Drop?', 'Talk to someone at Onity']);

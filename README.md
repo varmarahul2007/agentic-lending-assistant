@@ -1,6 +1,6 @@
 # Agentic Lending Assistant
 
-A single-file, Claude-powered chat widget template for a mortgage/lending site. Free-form questions are answered by the real Claude API — the model decides on its own when to run a payment calculator, a pre-qualification check, a document checklist, a rate lookup, or a human handoff, via genuine tool-calling. Also includes voice input/output via the Web Speech API.
+A single-file, AI-powered chat widget template for a mortgage/lending site. Free-form questions are answered by a real LLM — Anthropic Claude, Google Gemini, or OpenAI GPT, your choice — via genuine tool-calling: the model decides on its own when to run a payment calculator, a pre-qualification check, a document checklist, a rate lookup, or a human handoff. Also includes voice input/output via the Web Speech API.
 
 It's one static `index.html` file with no build step and no backend.
 
@@ -9,9 +9,15 @@ It's one static `index.html` file with no build step and no backend.
 - **`index.html`** — the generic, unbranded template described below. Fork it for any lender.
 - **`onity-assistant.html`** — a real-content variant grounded in Onity Mortgage's published buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step process), with an on-topic-only guardrail: anything unrelated to Onity home loans gets a fixed deflection message instead of a guess. Independent prototype, not the official onitymortgage.com widget.
 
+Both variants share the same multi-provider architecture.
+
 ## Try it
 
-Open `index.html` in a browser (or visit the deployed URL), click the ⚙️ button, and paste an [Anthropic API key](https://console.anthropic.com/settings/keys). The key is stored only in your browser's `localStorage` and sent directly to `api.anthropic.com` — this repo has no server.
+Open `index.html` in a browser (or visit the deployed URL), click the ⚙️ button, pick a provider (Anthropic, Gemini, or OpenAI), and paste that provider's API key. The key is stored only in your browser's `localStorage` and sent directly to that provider — this repo has no server.
+
+**Provider support differs — this is a real API/CORS limitation, not a bug here:**
+- **Anthropic** and **Google Gemini** both support direct browser calls and work out of the box.
+- **OpenAI** blocks cross-origin browser requests entirely (no CORS headers, failed preflight). The OpenAI option is fully implemented but will fail with "Failed to fetch" unless you put your own backend proxy in front of it.
 
 **Note:** this only works when the page is served as a normal site (opened locally, GitHub Pages, Vercel, etc.). It will *not* work inside an embedded preview/iframe sandbox (including Claude's own Artifact viewer) — those block outbound network requests, and the page will tell you so if it detects it's embedded.
 
@@ -21,8 +27,8 @@ Everything lives in `index.html`. Open the `<script>` tag near the bottom and ed
 
 - `COMPANY_NAME` — swap out the "Northstar Home Loans" placeholder
 - `SYSTEM_PROMPT` — the assistant's persona and behavior
-- `TOOLS` — the JSON schemas Claude can call (payment calculator, pre-qualification, document checklist, rates, human handoff); each has a matching `tool...` implementation function to edit
-- `MODEL_ID` — defaults to `claude-opus-4-8`; swap for a faster/cheaper model if you want
+- `TOOLS` — the JSON schemas the model can call (payment calculator, pre-qualification, document checklist, rates, human handoff); each has a matching `tool...` implementation function to edit
+- `PROVIDERS` — the model ID used per provider (defaults: `claude-opus-4-8`, `gemini-3.5-flash`, `gpt-5.4`); swap for a faster/cheaper model if you want
 
 ## Production note
 
