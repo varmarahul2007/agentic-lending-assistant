@@ -1,44 +1,82 @@
-# Agentic Lending Assistant
+# Onity Mortgage AI Chatbot
 
-A single-file, AI-powered chat widget template for a mortgage/lending site. Free-form questions are answered by a real LLM — Anthropic Claude, Google Gemini, or OpenAI GPT, your choice — via genuine tool-calling: the model decides on its own when to run a payment calculator, a pre-qualification check, a document checklist, a rate lookup, or a human handoff. Also includes voice input/output via the Web Speech API.
+A Python chatbot for Onity Mortgage chat support, grounded in the real onitymortgage.com/buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step homebuying process). Free-form questions are answered by a real LLM — Anthropic Claude, Google Gemini, or OpenAI GPT — via genuine tool-calling: the model decides on its own when to run the payment calculator, promotion lookup, pre-qualification check, document checklist, rates pointer, homebuying steps, or human handoff.
 
-It's one static `index.html` file with no build step and no backend.
+Anything unrelated to Onity home loans gets a fixed deflection message instead of a guess (strict on-topic guardrail), and **every input and response is written to a log file** you can review at any time.
 
-## Two variants in this repo
+## Python files
 
-- **`index.html`** — the generic, unbranded template described below. Fork it for any lender.
-- **`onity-assistant.html`** — a real-content variant grounded in Onity Mortgage's published buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step process), with an on-topic-only guardrail: anything unrelated to Onity home loans gets a fixed deflection message instead of a guess. Independent prototype, not the official onitymortgage.com widget.
+| File | Purpose |
+|---|---|
+| `main.py` | Terminal chat interface — run this to talk to the bot |
+| `app.py` | Web chat interface (Flask) — `python app.py`, then open http://localhost:5000 |
+| `chatbot.py` | Core engine: the LLM tool-calling agent loop for all 3 providers |
+| `knowledge_base.py` | The Onity RAG knowledge base + the AI behaviour instructions (system prompt, guardrail) |
+| `tools.py` | The 7 tools the model can call (calculator, promos, prequal, checklist, rates, steps, handoff) |
+| `chat_logger.py` | Conversation logging — writes every input/tool call/response to the log file |
+| `config.py` | Provider/model/API-key/log settings |
 
-Both variants share the same multi-provider architecture.
+## Setup
 
-## Try it
+```bash
+pip install -r requirements.txt
+```
 
-Open `index.html` in a browser (or visit the deployed URL), click the ⚙️ button, pick a provider (Anthropic, Gemini, or OpenAI), and paste that provider's API key. The key is stored only in your browser's `localStorage` and sent directly to that provider — this repo has no server.
+Pick a provider and set its API key (all three work — calls run server-side in Python, so even OpenAI's browser-CORS restriction doesn't apply here):
 
-**Provider support differs — this is a real API/CORS limitation, not a bug here:**
-- **Anthropic** and **Google Gemini** both support direct browser calls and work out of the box.
-- **OpenAI** blocks cross-origin browser requests entirely (no CORS headers, failed preflight). The OpenAI option is fully implemented but will fail with "Failed to fetch" unless you put your own backend proxy in front of it.
+```bash
+export PROVIDER=anthropic            # default; or: gemini / openai
+export ANTHROPIC_API_KEY=sk-ant-...  # from console.anthropic.com/settings/keys
+# or: export GEMINI_API_KEY=AIza...  # from aistudio.google.com/apikey
+# or: export OPENAI_API_KEY=sk-...   # from platform.openai.com/api-keys
+```
 
-**Note:** this only works when the page is served as a normal site (opened locally, GitHub Pages, Vercel, etc.). It will *not* work inside an embedded preview/iframe sandbox (including Claude's own Artifact viewer) — those block outbound network requests, and the page will tell you so if it detects it's embedded.
+## Run
 
-## Customize it for your own lender
+**Terminal chat:**
 
-Everything lives in `index.html`. Open the `<script>` tag near the bottom and edit:
+```bash
+python main.py
+```
 
-- `COMPANY_NAME` — swap out the "Northstar Home Loans" placeholder
-- `SYSTEM_PROMPT` — the assistant's persona and behavior
-- `TOOLS` — the JSON schemas the model can call (payment calculator, pre-qualification, document checklist, rates, human handoff); each has a matching `tool...` implementation function to edit
-- `PROVIDERS` — the model ID used per provider (defaults: `claude-opus-4-8`, `gemini-3.5-flash`, `gpt-5.4`); swap for a faster/cheaper model if you want
+```
+You: What is the 1% Rate Drop?
+  [tool used: get_promotion_details]
+Bot: The 1% Rate Drop is a lender-paid temporary buydown on purchase loans...
+```
 
-## Production note
+**Web chat:**
 
-Storing a real API key in every visitor's browser is fine for a demo or an internal tool, but not for a public consumer product — anyone can read it out of `localStorage`. For production, proxy requests through your own backend (or a small serverless function) so the key never reaches the client.
+```bash
+python app.py     # then open http://localhost:5000
+```
 
-## Deploy
+## Chat log
 
-- **GitHub Pages**: enable Pages on this repo, serve from the root — `index.html` is already Pages-ready.
-- **Vercel**: `vercel deploy` from this directory, or connect the repo in the Vercel dashboard. No build settings needed (static file).
+Every session appends to `logs/chat_log.txt` — session start, each user input, each tool call with its arguments and result, each assistant response, and any errors, all timestamped:
 
-## License
+```
+[2026-07-19 10:25:23] [session 3778a7c1] SESSION START: provider=anthropic model=claude-opus-4-8
+[2026-07-19 10:25:23] [session 3778a7c1] USER: What is the 1% Rate Drop?
+[2026-07-19 10:25:23] [session 3778a7c1] TOOL: get_promotion_details({'promotion': 'rate_drop_1pct'}) -> 1% Rate Drop: Type — Lender-paid 1/0 temporary buydown; ...
+[2026-07-19 10:25:23] [session 3778a7c1] ASSISTANT: The 1% Rate Drop is a lender-paid buydown that lowers your payment for the first 12 months...
+```
 
-Add a license of your choice before publishing.
+The `logs/` folder is created automatically on first run (and is gitignored so real customer conversations never get pushed to the repo). Change the location with `CHAT_LOG_DIR`.
+
+## How the RAG grounding works
+
+The knowledge base corpus in `knowledge_base.py` is injected into every request's system prompt (rather than retrieved conditionally), so grounding never drops mid-conversation — the corpus is small enough that inlining it beats a vector-retrieval pipeline. The system prompt also enforces: never quote live rates (the rates tool points to the real rates page instead), promotion figures must come from the `get_promotion_details` tool rather than model memory, hardship language triggers an immediate human handoff, and off-topic questions get a fixed deflection message.
+
+## Also in this repo: browser-only HTML variants
+
+- `index.html` — a generic, unbranded single-file chat widget template (bring-your-own-key, no backend). Fork it for any lender.
+- `onity-assistant.html` — the Onity-branded single-file variant of the same widget.
+
+These run entirely in the browser with the visitor's own API key and are deployable as static pages (e.g. Vercel/GitHub Pages). Note: unlike the Python app, the static pages cannot call OpenAI (its API blocks browser CORS requests) and cannot write a server-side log file — that's exactly what the Python version adds.
+
+## Notes
+
+- This is an independent prototype, not the official onitymortgage.com chat widget.
+- Model defaults: `claude-opus-4-8`, `gemini-3.5-flash`, `gpt-5.4` — override with `ANTHROPIC_MODEL` / `GEMINI_MODEL` / `OPENAI_MODEL`.
+- Informational only, not financial advice; loans subject to credit approval. Onity is not licensed in Hawaii.
