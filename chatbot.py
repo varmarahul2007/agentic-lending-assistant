@@ -4,7 +4,9 @@ The conversation history is stored provider-agnostically as
 [{"role": "user"|"assistant", "text": ...}] and translated to each
 provider's wire format fresh on every call, so the provider can even be
 switched mid-conversation. Supported providers: Anthropic (Claude),
-Google (Gemini), OpenAI (GPT) — all called server-side via requests.
+Google (Gemini), OpenAI (GPT), and DeepSeek — all called server-side
+via requests. DeepSeek's API is OpenAI-compatible, so it shares the
+OpenAI code path with a different base URL.
 
 Usage:
     bot = OnityChatbot()
@@ -49,7 +51,9 @@ class OnityChatbot:
             if self.provider == "gemini":
                 reply = self._run_gemini()
             elif self.provider == "openai":
-                reply = self._run_openai()
+                reply = self._run_openai_compatible("OpenAI", "https://api.openai.com/v1/chat/completions")
+            elif self.provider == "deepseek":
+                reply = self._run_openai_compatible("DeepSeek", "https://api.deepseek.com/chat/completions")
             else:
                 reply = self._run_anthropic()
         except ChatbotError as exc:
@@ -171,7 +175,8 @@ class OnityChatbot:
         raise ChatbotError("Too many tool iterations")
 
     # ------------------------------------------------------------------
-    def _run_openai(self) -> str:
+    def _run_openai_compatible(self, provider_label: str, endpoint: str) -> str:
+        """Agent loop for OpenAI-format chat-completions APIs (OpenAI, DeepSeek)."""
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages += [{"role": m["role"], "content": m["text"]} for m in self.history]
         openai_tools = [
@@ -181,7 +186,7 @@ class OnityChatbot:
         ]
         for _ in range(config.MAX_TOOL_ITERATIONS):
             resp = requests.post(
-                "https://api.openai.com/v1/chat/completions",
+                endpoint,
                 headers={
                     "content-type": "application/json",
                     "Authorization": f"Bearer {self._api_key()}",
@@ -189,7 +194,7 @@ class OnityChatbot:
                 json={"model": self.model, "messages": messages, "tools": openai_tools},
                 timeout=120,
             )
-            data = self._check_response(resp, "OpenAI")
+            data = self._check_response(resp, provider_label)
             msg = data["choices"][0]["message"]
             if msg.get("tool_calls"):
                 messages.append(msg)

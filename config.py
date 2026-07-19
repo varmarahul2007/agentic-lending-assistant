@@ -1,7 +1,8 @@
 """Configuration for the Onity Mortgage chatbot.
 
 Pick the LLM provider with the PROVIDER environment variable
-("anthropic", "gemini", or "openai") and supply the matching API key:
+("anthropic", "gemini", "openai", or "deepseek") and supply the
+matching API key:
 
     export PROVIDER=anthropic
     export ANTHROPIC_API_KEY=sk-ant-...
@@ -12,13 +13,16 @@ Pick the LLM provider with the PROVIDER environment variable
     export PROVIDER=openai
     export OPENAI_API_KEY=sk-...
 
+    export PROVIDER=deepseek
+    export DEEPSEEK_API_KEY=sk-...
+
 All calls run server-side from Python, so every provider works here
-(including OpenAI, which blocks direct browser calls).
+(including OpenAI and DeepSeek, which block direct browser calls).
 """
 
 import os
 
-# Which LLM answers the chat. One of: "anthropic", "gemini", "openai".
+# Which LLM answers the chat. One of: "anthropic", "gemini", "openai", "deepseek".
 PROVIDER = os.environ.get("PROVIDER", "anthropic").strip().lower()
 
 MODELS = {
@@ -26,12 +30,16 @@ MODELS = {
     "gemini": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
     # Verify against platform.openai.com/docs/models — OpenAI's lineup moves fast.
     "openai": os.environ.get("OPENAI_MODEL", "gpt-5.4"),
+    # deepseek-v4-pro is the model DeepSeek documents tool calling on
+    # (deepseek-chat/deepseek-reasoner are deprecated as of 2026-07-24).
+    "deepseek": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"),
 }
 
 API_KEY_ENV_VARS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
 }
 
 # Where conversation logs are written. Every user input, tool call, and

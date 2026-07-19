@@ -1,6 +1,6 @@
 # Onity Mortgage AI Chatbot
 
-A Python chatbot for Onity Mortgage chat support, grounded in the real onitymortgage.com/buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step homebuying process). Free-form questions are answered by a real LLM — Anthropic Claude, Google Gemini, or OpenAI GPT — via genuine tool-calling: the model decides on its own when to run the payment calculator, promotion lookup, pre-qualification check, document checklist, rates pointer, homebuying steps, or human handoff.
+A Python chatbot for Onity Mortgage chat support, grounded in the real onitymortgage.com/buy-a-home knowledge base (Purchase Promise programs, contact channels, the 6-step homebuying process). Free-form questions are answered by a real LLM — Anthropic Claude, Google Gemini, OpenAI GPT, or DeepSeek — via genuine tool-calling: the model decides on its own when to run the payment calculator, promotion lookup, pre-qualification check, document checklist, rates pointer, homebuying steps, or human handoff.
 
 Anything unrelated to Onity home loans gets a fixed deflection message instead of a guess (strict on-topic guardrail), and **every input and response is written to a log file** you can review at any time.
 
@@ -10,7 +10,7 @@ Anything unrelated to Onity home loans gets a fixed deflection message instead o
 |---|---|
 | `main.py` | Terminal chat interface — run this to talk to the bot |
 | `app.py` | Web chat interface (Flask) — `python app.py`, then open http://localhost:5001 |
-| `chatbot.py` | Core engine: the LLM tool-calling agent loop for all 3 providers |
+| `chatbot.py` | Core engine: the LLM tool-calling agent loop for all 4 providers |
 | `knowledge_base.py` | The Onity RAG knowledge base + the AI behaviour instructions (system prompt, guardrail) |
 | `tools.py` | The 7 tools the model can call (calculator, promos, prequal, checklist, rates, steps, handoff) |
 | `chat_logger.py` | Conversation logging — writes every input/tool call/response to the log file |
@@ -22,13 +22,14 @@ Anything unrelated to Onity home loans gets a fixed deflection message instead o
 pip install -r requirements.txt
 ```
 
-Pick a provider and set its API key (all three work — calls run server-side in Python, so even OpenAI's browser-CORS restriction doesn't apply here):
+Pick a provider and set its API key (all four work — calls run server-side in Python, so browser-CORS restrictions don't apply here):
 
 ```bash
-export PROVIDER=anthropic            # default; or: gemini / openai
+export PROVIDER=anthropic            # default; or: gemini / openai / deepseek
 export ANTHROPIC_API_KEY=sk-ant-...  # from console.anthropic.com/settings/keys
 # or: export GEMINI_API_KEY=AIza...  # from aistudio.google.com/apikey
 # or: export OPENAI_API_KEY=sk-...   # from platform.openai.com/api-keys
+# or: export DEEPSEEK_API_KEY=sk-...  # from platform.deepseek.com/api_keys
 ```
 
 ## Run
@@ -78,5 +79,5 @@ These run entirely in the browser with the visitor's own API key and are deploya
 ## Notes
 
 - This is an independent prototype, not the official onitymortgage.com chat widget.
-- Model defaults: `claude-opus-4-8`, `gemini-3.5-flash`, `gpt-5.4` — override with `ANTHROPIC_MODEL` / `GEMINI_MODEL` / `OPENAI_MODEL`.
+- Model defaults: `claude-opus-4-8`, `gemini-3.5-flash`, `gpt-5.4`, `deepseek-v4-pro` — override with `ANTHROPIC_MODEL` / `GEMINI_MODEL` / `OPENAI_MODEL` / `DEEPSEEK_MODEL`.
 - Informational only, not financial advice; loans subject to credit approval. Onity is not licensed in Hawaii.
