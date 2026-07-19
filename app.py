@@ -6,11 +6,14 @@ Run:
     export PROVIDER=anthropic                # or gemini / openai
     python app.py
 
-Then open http://localhost:5000 — a simple chat page backed by
-POST /chat. Because all LLM calls happen server-side in Python, every
+Then open http://localhost:5001 — a simple chat page backed by
+POST /chat. (Port 5001 by default because macOS AirPlay occupies 5000;
+override with the PORT environment variable.) Because all LLM calls happen server-side in Python, every
 provider works here, including OpenAI (which blocks direct browser
 calls). All inputs, tool calls, and responses go to logs/chat_log.txt.
 """
+
+import os
 
 from flask import Flask, jsonify, render_template_string, request, session
 
@@ -106,4 +109,7 @@ def chat():
 
 if __name__ == "__main__":
     config.validate()
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    port = int(os.environ.get("PORT", 5001))
+    print(f"Onity chatbot running — open http://localhost:{port}")
+    print(f"Conversation log: {config.LOG_FILE}")
+    app.run(host="127.0.0.1", port=port, debug=False)

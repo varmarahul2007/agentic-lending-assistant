@@ -9,7 +9,7 @@ Anything unrelated to Onity home loans gets a fixed deflection message instead o
 | File | Purpose |
 |---|---|
 | `main.py` | Terminal chat interface — run this to talk to the bot |
-| `app.py` | Web chat interface (Flask) — `python app.py`, then open http://localhost:5000 |
+| `app.py` | Web chat interface (Flask) — `python app.py`, then open http://localhost:5001 |
 | `chatbot.py` | Core engine: the LLM tool-calling agent loop for all 3 providers |
 | `knowledge_base.py` | The Onity RAG knowledge base + the AI behaviour instructions (system prompt, guardrail) |
 | `tools.py` | The 7 tools the model can call (calculator, promos, prequal, checklist, rates, steps, handoff) |
@@ -48,7 +48,7 @@ Bot: The 1% Rate Drop is a lender-paid temporary buydown on purchase loans...
 **Web chat:**
 
 ```bash
-python app.py     # then open http://localhost:5000
+python app.py     # then open http://localhost:5001
 ```
 
 ## Chat log
